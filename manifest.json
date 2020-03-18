@@ -1,0 +1,7 @@
+{
+  "name": "Game Table",
+  "id": "821551836994273943",
+  "api": "1.0.0",
+  "main": "dist/code.js",
+  "ui": "dist/ui.html"
+}
