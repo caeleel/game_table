@@ -81,9 +81,6 @@ class App extends React.Component<{}, { url: string, players: PlayerData[], acti
             </div>
           })}
         </div>
-        <button onClick={this.shuffle}>Shuffle</button>
-        <button onClick={this.gather}>Gather</button>
-        <button onClick={this.flip}>Flip</button>
       </div>
     }
 

@@ -3,5 +3,10 @@
   "id": "821551836994273943",
   "api": "1.0.0",
   "main": "dist/code.js",
-  "ui": "dist/ui.html"
+  "ui": "dist/ui.html",
+  "relaunchButtons": [
+    {"command": "shuffle", "name": "Shuffle", "multipleSelection": true},
+    {"command": "flip", "name": "Flip Over", "multipleSelection": true},
+    {"command": "gather", "name": "Gather"}
+  ]
 }

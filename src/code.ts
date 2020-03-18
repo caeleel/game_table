@@ -1,14 +1,6 @@
-// This plugin will open a modal to prompt the user to enter a number, and
-// it will then create that many rectangles on the screen.
-
-// This file holds the main code for the plugins. It has access to the *document*.
-// You can access browser APIs in the <script> tag inside "ui.html" which has a
-// full browser enviroment (see documentation).
-
-// This shows the HTML page in "ui.html".
-figma.showUI(__html__, {width: 400, height: 400});
-
 function main() {
+  figma.showUI(__html__, { width: 400, height: 400 });
+
   const selection = figma.currentPage.selection;
   if (selection.length !== 1) {
     figma.notify("Select exactly 1 frame to start game");
@@ -45,10 +37,16 @@ function main() {
       assetNode = figma.createComponent();
       assetNode.name = "assets";
       game.appendChild(assetNode);
+      const prevHidden = figma.root.getPluginData("hiddenNode");
+      if (prevHidden !== "") {
+        figma.getNodeById(prevHidden).remove();
+      }
+
       const hiddenFrame = figma.createFrame();
       hiddenFrame.name = "hidden-data";
       hiddenFrame.visible = false;
       hiddenFrame.locked = true;
+      figma.root.setPluginData("hiddenNode", hiddenFrame.id);
 
       let xOffset = MARGIN;
       for (const frame of page.children) {
@@ -77,8 +75,14 @@ function main() {
             clone.y = HIDE_OFFSET;
             clone.locked = true;
             widget.resize(clone.width, clone.height);
+            widget.setRelaunchData({
+              shuffle: '',
+              gather: '',
+              flip: '',
+            })
 
             const instance = widget.createInstance();
+            instance.setPluginData("assetNode", assetNode.id);
             assetNode.appendChild(instance);
             instance.x = xOffset;
             instance.y = yOffset;
@@ -155,68 +159,85 @@ function main() {
     if (msg.type === "setURL") {
       figma.root.setPluginData("url", msg.url);
     }
-    if (msg.type === "shuffle") {
-      const toShuffle = figma.currentPage.selection.map((node) => node.id);
-      if (toShuffle.length === 0) return;
-      const node = figma.getNodeById(toShuffle[0]) as SceneNode;
-      const parent = node.parent;
-      let xPos = node.x;
-      let yPos = node.y;
-
-      for (let i = 0; i < toShuffle.length; i++) {
-        const idx = Math.floor(Math.random() * (toShuffle.length - i)) + i;
-        const target = figma.getNodeById(toShuffle[idx]) as SceneNode;
-        target.x = xPos;
-        target.y = yPos;
-        yPos--;
-        parent.insertChild(i, target);
-        const tmp = toShuffle[idx];
-        toShuffle[idx] = toShuffle[i];
-        toShuffle[i] = tmp;
-      }
-      figma.notify("Finished shuffling");
-    }
-    if (msg.type === "gather") {
-      const toGather = figma.currentPage.selection;
-      if (toGather.length !== 1) {
-        figma.notify("Select a single item to gather");
-        return;
-      }
-      const target = toGather[0];
-      const targetName = target.name;
-      assetNode.appendChild(target);
-      let nextIdx = assetNode.children.length - 1;
-      let xPos = target.x;
-      let yPos = target.y;
-      const children = assetNode.children;
-      for (const candidate of children) {
-        if (candidate.id !== target.id && candidate.name === targetName) {
-          assetNode.insertChild(nextIdx, candidate);
-          yPos++;
-          candidate.x = xPos;
-          candidate.y = yPos;
-          nextIdx--;
-        }
-      }
-    }
-    if (msg.type === "flip") {
-      const selected = figma.currentPage.selection;
-
-      for (let node of selected) {
-        if (node.type !== "INSTANCE") continue;
-
-        node = node.masterComponent;
-
-        if (node.children.length === 2) {
-          const clone = node.children[1].clone();
-          node.appendChild(clone);
-          clone.y = 0;
-        } else if (node.children.length === 3) {
-          node.children[2].remove();
-        }
-      }
-    }
-  };
+  }
 }
 
-main();
+function shuffle() {
+  const toShuffle = figma.currentPage.selection.map((node) => node.id);
+  if (toShuffle.length === 0) return;
+  const node = figma.getNodeById(toShuffle[0]) as SceneNode;
+  const parent = node.parent;
+  let xPos = node.x;
+  let yPos = node.y;
+
+  for (let i = 0; i < toShuffle.length; i++) {
+    const idx = Math.floor(Math.random() * (toShuffle.length - i)) + i;
+    const target = figma.getNodeById(toShuffle[idx]) as SceneNode;
+    target.x = xPos;
+    target.y = yPos;
+    yPos--;
+    parent.insertChild(i, target);
+    const tmp = toShuffle[idx];
+    toShuffle[idx] = toShuffle[i];
+    toShuffle[i] = tmp;
+  }
+  figma.notify("Finished shuffling");
+  figma.closePlugin();
+}
+
+function gather() {
+  const toGather = figma.currentPage.selection;
+  if (toGather.length !== 1) {
+    figma.notify("Select a single item to gather");
+    return;
+  }
+  const target = toGather[0];
+  const targetName = target.name;
+  const assetNodeID = target.getPluginData("assetNode");
+  if (assetNodeID === "") return;
+
+  const assetNode = figma.getNodeById(assetNodeID);
+  if (assetNode.removed) return;
+  if (assetNode.type !== "COMPONENT") return;
+
+  let xPos = target.x;
+  let yPos = target.y;
+  const children = assetNode.children;
+  const gathered: SceneNode[] = [];
+
+  for (const candidate of children) {
+    if (candidate.name === targetName) {
+      gathered.push(candidate);
+      candidate.x = xPos;
+      candidate.y = yPos;
+      yPos--;
+    }
+  }
+  figma.currentPage.selection = gathered;
+
+  figma.closePlugin();
+}
+
+function flip() {
+  const selected = figma.currentPage.selection;
+
+  for (let node of selected) {
+    if (node.type !== "INSTANCE") continue;
+
+    node = node.masterComponent;
+
+    if (node.children.length === 2) {
+      const clone = node.children[1].clone();
+      node.appendChild(clone);
+      clone.y = 0;
+    } else if (node.children.length === 3) {
+      node.children[2].remove();
+    }
+  }
+  figma.closePlugin();
+}
+
+if (figma.command === "shuffle") shuffle();
+else if (figma.command === "flip") flip();
+else if (figma.command === "gather") gather();
+else main();
