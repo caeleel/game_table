@@ -53,19 +53,7 @@ class App extends React.Component<{}, { url: string, players: PlayerData[], acti
   }
 
   setURL = (ev: React.ChangeEvent<HTMLInputElement>) => {
-    this.setState({ url: ev.target.value })
-  }
-
-  shuffle = () => {
-    parent.postMessage({ pluginMessage: { type: "shuffle" }}, "*")
-  }
-
-  gather = () => {
-    parent.postMessage({ pluginMessage: { type: "gather" }}, "*")
-  }
-
-  flip = () => {
-    parent.postMessage({ pluginMessage: { type: "flip" }}, "*")
+    this.setState({ url: ev.target.value.split('?')[0] })
   }
 
   render() {
@@ -75,8 +63,8 @@ class App extends React.Component<{}, { url: string, players: PlayerData[], acti
         <button onClick={this.sendURL}>Set URL</button>
         <div className="players">
           {this.state.players.map((player) => {
-            return <div className="player" key={player.frameID}>
-              <div className="info" onClick={() => this.setState({ activePlayer: player })}>i</div>
+            return <div className="player" key={player.frameID} onClick={() => this.setState({ activePlayer: player })}>
+              <div className="info">i</div>
               <div className="name">{player.name}</div>
             </div>
           })}

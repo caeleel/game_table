@@ -1,6 +1,5 @@
 body {
   font: 12px sans-serif;
-  text-align: center;
   margin: 20px;
 }
 button {
@@ -20,7 +19,6 @@ input {
 }
 input:hover { box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.1); }
 button:focus { box-shadow: inset 0 0 0 2px #18A0FB; }
-#create:focus { box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.3); }
 input:focus { box-shadow: inset 0 0 0 2px #18A0FB; }
 
 .url_input {
@@ -33,9 +31,9 @@ input:focus { box-shadow: inset 0 0 0 2px #18A0FB; }
 
 .player {
   display: flex;
-  text-align: left;
   margin-top: 5px;
   align-items: center;
+  cursor: pointer;
 }
 
 .player .info {
@@ -46,11 +44,6 @@ input:focus { box-shadow: inset 0 0 0 2px #18A0FB; }
   height: 14px;
   text-align: center;
   margin-right: 5px;
-  cursor: pointer;
-}
-
-.back {
-  text-align: left;
 }
 
 .qrcode {
@@ -58,8 +51,4 @@ input:focus { box-shadow: inset 0 0 0 2px #18A0FB; }
   display: flex;
   flex-direction: column;
   align-items: center;
-}
-
-.url {
-  text-align: left;
 }

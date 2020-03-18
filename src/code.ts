@@ -21,6 +21,7 @@ function main() {
   const playerFrames: { [name: string]: string } = {};
   let assetNode: ComponentNode | null = null;
   const game = selection[0];
+  game.setRelaunchData({ players: "Click on a player to get a link for their secret hand info" })
   let players = new Set<string>();
 
   for (const node of game.children) {
@@ -37,7 +38,7 @@ function main() {
       assetNode = figma.createComponent();
       assetNode.name = "assets";
       game.appendChild(assetNode);
-      const prevHidden = figma.root.getPluginData("hiddenNode");
+      const prevHidden = game.getPluginData("hiddenNode");
       if (prevHidden !== "") {
         figma.getNodeById(prevHidden).remove();
       }
@@ -46,7 +47,7 @@ function main() {
       hiddenFrame.name = "hidden-data";
       hiddenFrame.visible = false;
       hiddenFrame.locked = true;
-      figma.root.setPluginData("hiddenNode", hiddenFrame.id);
+      game.setPluginData("hiddenNode", hiddenFrame.id);
 
       let xOffset = MARGIN;
       for (const frame of page.children) {
@@ -162,6 +163,15 @@ function main() {
   }
 }
 
+function turnFaceDown(node: SceneNode) {
+  if (node.type === "INSTANCE") {
+    const master = node.masterComponent;
+    if (master.children.length === 3) {
+      master.children[2].remove();
+    }
+  }
+}
+
 function shuffle() {
   const toShuffle = figma.currentPage.selection.map((node) => node.id);
   if (toShuffle.length === 0) return;
@@ -173,6 +183,7 @@ function shuffle() {
   for (let i = 0; i < toShuffle.length; i++) {
     const idx = Math.floor(Math.random() * (toShuffle.length - i)) + i;
     const target = figma.getNodeById(toShuffle[idx]) as SceneNode;
+    turnFaceDown(target);
     target.x = xPos;
     target.y = yPos;
     yPos--;
@@ -208,6 +219,7 @@ function gather() {
   for (const candidate of children) {
     if (candidate.name === targetName) {
       gathered.push(candidate);
+      turnFaceDown(candidate);
       candidate.x = xPos;
       candidate.y = yPos;
       yPos--;
