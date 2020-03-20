@@ -7,6 +7,7 @@
   "relaunchButtons": [
     {"command": "shuffle", "name": "Shuffle", "multipleSelection": true},
     {"command": "flip", "name": "Flip Over", "multipleSelection": true},
+    {"command": "tidy", "name": "Tidy Up", "multipleSelection": true},
     {"command": "gather", "name": "Gather"},
     {"command": "players", "name": "Show Player Links"}
   ]

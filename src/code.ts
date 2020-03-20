@@ -80,6 +80,7 @@ function main() {
               shuffle: '',
               gather: '',
               flip: '',
+              tidy: '',
             })
 
             const instance = widget.createInstance();
@@ -91,7 +92,9 @@ function main() {
           }
         }
 
-        xOffset += 20 + frame.width;
+        if (back) {
+          xOffset += MARGIN + back.width;
+        }
       }
     }
   }
@@ -197,22 +200,42 @@ function shuffle() {
 }
 
 function gather() {
-  const toGather = figma.currentPage.selection;
-  if (toGather.length !== 1) {
-    figma.notify("Select a single item to gather");
+  const toGather = [...figma.currentPage.selection];
+  if (toGather.length === 0) {
+    figma.notify("Select item or itmes to gather");
     return;
   }
+
   const target = toGather[0];
-  const targetName = target.name;
+  let xPos = target.x;
+  let yPos = target.y;
+
   const assetNodeID = target.getPluginData("assetNode");
   if (assetNodeID === "") return;
-
   const assetNode = figma.getNodeById(assetNodeID);
   if (assetNode.removed) return;
   if (assetNode.type !== "COMPONENT") return;
 
-  let xPos = target.x;
-  let yPos = target.y;
+  if (toGather.length > 1) {
+    toGather.sort((a, b) => {
+      if (a.x < b.x) return -1;
+      if (a.x > b.x) return 1;
+      if (a.y < b.y) return -1;
+      if (a.y > b.y) return 1;
+      return 0;
+    });
+
+    for (const item of toGather) {
+      item.x = xPos;
+      item.y = yPos;
+      xPos += 100;
+      assetNode.appendChild(item);
+    }
+    figma.closePlugin();
+    return;
+  }
+
+  const targetName = target.name;
   const children = assetNode.children;
   const gathered: SceneNode[] = [];
 
@@ -252,4 +275,5 @@ function flip() {
 if (figma.command === "shuffle") shuffle();
 else if (figma.command === "flip") flip();
 else if (figma.command === "gather") gather();
+else if (figma.command === "tidy") gather();
 else main();
