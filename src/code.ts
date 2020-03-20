@@ -81,6 +81,7 @@ function main() {
               gather: '',
               flip: '',
               tidy: '',
+              count: `Count ${frame.name}s`
             })
 
             const instance = widget.createInstance();
@@ -276,4 +277,7 @@ if (figma.command === "shuffle") shuffle();
 else if (figma.command === "flip") flip();
 else if (figma.command === "gather") gather();
 else if (figma.command === "tidy") gather();
-else main();
+else if (figma.command === "count") {
+  figma.notify(`${figma.currentPage.selection.length} selected`);
+  figma.closePlugin();
+} else main();
