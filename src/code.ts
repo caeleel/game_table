@@ -1,5 +1,7 @@
 function main() {
-  figma.showUI(__html__, { width: 400, height: 400 });
+  const UI_HEIGHT = 150;
+  const UI_WIDTH = 400;
+  figma.showUI(__html__, { width: UI_WIDTH, height: UI_HEIGHT });
 
   const selection = figma.currentPage.selection;
   if (selection.length !== 1) {
@@ -8,21 +10,37 @@ function main() {
     return;
   }
 
-  if (selection[0].type !== "FRAME") {
+  const url = figma.root.getPluginData("url");
+  if (url !== null) {
+    figma.ui.postMessage({ type: "setURL", url });
+  }
+
+  let game = selection[0];
+
+  function showViewerInfo(target: SceneNode) {
+    const viewerRef = target.getPluginData("viewerRef");
+    const viewerFrame = figma.getNodeById(viewerRef);
+    figma.ui.resize(UI_WIDTH, viewerFrame ? 400 : UI_HEIGHT);
+    figma.ui.postMessage({ type: "setViewerFrame", viewerFrame: viewerFrame ? viewerRef : null });
+  }
+
+  if (game.getPluginData("gameRef") !== "") {
+    const candidate = figma.getNodeById(game.getPluginData("gameRef"));
+    if (candidate && !candidate.removed) {
+      game = candidate as SceneNode;
+    };
+  }
+
+  if (game.type !== "FRAME") {
     figma.notify("Must select a frame node");
     figma.closePlugin();
     return;
   }
 
-  const PLAYER_PREFIX = "Player: ";
   const HIDE_OFFSET = 20000;
   const MARGIN = 100;
-  const pageNodes: { [name: string]: PageNode } = {};
-  const playerFrames: { [name: string]: string } = {};
   let assetNode: ComponentNode | null = null;
-  const game = selection[0];
-  game.setRelaunchData({ players: "Click on a player to get a link for their secret hand info" })
-  let players = new Set<string>();
+  game.setRelaunchData({ players: "Select or create a Viewing Window to see secret info" })
 
   for (const node of game.children) {
     if (node.type === "COMPONENT" && node.name === "assets") {
@@ -32,8 +50,11 @@ function main() {
   }
 
   for (const page of figma.root.children) {
-    if (page.name.substring(0, PLAYER_PREFIX.length) === PLAYER_PREFIX) {
-      pageNodes[page.name] = page;
+    const srcNode = page.getPluginData("srcNode");
+
+    if (srcNode) {
+      const node = figma.getNodeById(srcNode);
+      if (!node || node.removed) page.remove();
     } else if (page.name === "Assets" && assetNode === null) {
       assetNode = figma.createComponent();
       assetNode.name = "assets";
@@ -104,65 +125,67 @@ function main() {
   assetNode.x = 0;
   assetNode.y = 0;
 
-  for (const node of game.children) {
-    if (["COMPONENT", "INSTANCE", "FRAME", "RECTANGLE"].indexOf(node.type) >= 0 &&
-      node.name.substring(0, PLAYER_PREFIX.length) == PLAYER_PREFIX) {
-      const name = node.name.substring(PLAYER_PREFIX.length);
-      if (players.has(name)) {
-        figma.notify("Player names must be unique");
-        figma.closePlugin();
-        return;
-      }
-
-      let playerPage = pageNodes[node.name];
-      if (!playerPage) {
-        playerPage = figma.createPage();
-        playerPage.name = node.name;
-      }
-
-      let viewerFrame: FrameNode | null = null;
-      for (const node of playerPage.children) {
-        if (node.type === "FRAME" && node.name === "viewer") {
-          viewerFrame = node;
-        } else {
-          node.remove();
-        }
-      }
-
-      if (viewerFrame === null) {
-        viewerFrame = figma.createFrame();
-        playerPage.appendChild(viewerFrame);
-        viewerFrame.name = "viewer";
-      }
-
-      playerFrames[name] = viewerFrame.id;
-      viewerFrame.resize(node.width, node.height);
-      let periscope: InstanceNode | null = null;
-      for (const child of viewerFrame.children) {
-        if (child.type === "INSTANCE" && child.name === "periscope" && child.masterComponent === assetNode) {
-          periscope = child;
-        } else {
-          child.remove();
-        }
-      }
-      if (periscope === null) {
-        periscope = assetNode.createInstance();
-        viewerFrame.appendChild(periscope);
-      }
-      periscope.x = assetNode.x - node.x;
-      periscope.y = assetNode.y - node.y - HIDE_OFFSET;
+  function checkSelection() {
+    function unset() {
+      figma.ui.postMessage({ type: "unsetViewerFrame" });
+      figma.ui.resize(UI_WIDTH, UI_HEIGHT);
     }
-  }
 
-  const url = figma.root.getPluginData("url");
-  if (url !== null) {
-    figma.ui.postMessage({ type: "setURL", url });
+    if (figma.currentPage.selection.length !== 1) {
+      unset();
+      return;
+    }
+
+    const target = figma.currentPage.selection[0];
+    if (target.parent !== assetNode) {
+      unset();
+      return;
+    }
+
+    showViewerInfo(target);
   }
-  figma.ui.postMessage({ type: "playerFrames", playerFrames });
+  figma.on("selectionchange", checkSelection);
+  checkSelection();
 
   figma.ui.onmessage = msg => {
     if (msg.type === "setURL") {
       figma.root.setPluginData("url", msg.url);
+    } else if (msg.type === "setViewerFrame") {
+      if (figma.currentPage.selection.length !== 1) return;
+
+      const target = figma.currentPage.selection[0];
+      const viewerRef = target.getPluginData("viewerRef");
+      if (figma.getNodeById(viewerRef)) return;
+      if (target.type !== "RECTANGLE" && target.type !== "FRAME" && target.type !== "INSTANCE") return;
+      target.fills = [];
+      target.strokes = [
+        { type: "SOLID", color: { r: 0, g: 0, b: 0 }, opacity: 0.5 },
+        { type: "SOLID", color: { r: 1, g: 1, b: 1 }, opacity: 0.5 },
+      ];
+      target.locked = true;
+      target.dashPattern = [32, 32];
+      target.strokeWeight = 8;
+      target.name = "Viewing Window";
+
+      const playerPage = figma.createPage();
+      playerPage.name = "viewer-page";
+      playerPage.setPluginData("srcNode", target.id);
+
+      const viewerFrame = figma.createFrame();
+      playerPage.appendChild(viewerFrame);
+      viewerFrame.name = "viewer";
+      target.setPluginData("viewerRef", viewerFrame.id);
+      target.setPluginData("gameRef", game.id);
+      target.setRelaunchData({ players: "Get link to secret viewing window" });
+      viewerFrame.resize(target.width, target.height);
+
+      const periscope = assetNode.createInstance();
+      viewerFrame.appendChild(periscope);
+      periscope.x = assetNode.x - target.x;
+      periscope.y = assetNode.y - target.y - HIDE_OFFSET;
+
+      figma.ui.resize(UI_WIDTH, 400);
+      figma.ui.postMessage({ type: "setViewerFrame", viewerFrame: viewerFrame.id });
     }
   }
 }
@@ -207,7 +230,7 @@ function gather() {
     return;
   }
 
-  const target = toGather[0];
+  let target = toGather[0];
   let xPos = target.x;
   let yPos = target.y;
 
@@ -226,10 +249,14 @@ function gather() {
       return 0;
     });
 
+    target = toGather[0];
+    xPos = target.x;
+    yPos = target.y;
+
     for (const item of toGather) {
       item.x = xPos;
       item.y = yPos;
-      xPos += 100;
+      xPos += item.width + 2;
       assetNode.appendChild(item);
     }
     figma.closePlugin();

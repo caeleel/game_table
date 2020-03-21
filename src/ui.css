@@ -25,25 +25,12 @@ input:focus { box-shadow: inset 0 0 0 2px #18A0FB; }
   width: 270px;
 }
 
-.players {
-  margin: 20px 0;
-}
-
-.player {
+.set_window {
+  width: 100%;
+  height: 80px;
   display: flex;
-  margin-top: 5px;
   align-items: center;
-  cursor: pointer;
-}
-
-.player .info {
-  border: 1px solid #bbb;
-  border-radius: 50%;
-  color: #bbb;
-  width: 14px;
-  height: 14px;
-  text-align: center;
-  margin-right: 5px;
+  justify-content: center;
 }
 
 .qrcode {

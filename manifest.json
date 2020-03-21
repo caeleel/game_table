@@ -10,6 +10,6 @@
     {"command": "tidy", "name": "Tidy Up", "multipleSelection": true},
     {"command": "count", "name": "Count Selection", "multipleSelection": true},
     {"command": "gather", "name": "Gather"},
-    {"command": "players", "name": "Show Player Links"}
+    {"command": "players", "name": "Get Link to Viewing Window"}
   ]
 }

@@ -27,18 +27,16 @@ interface PlayerData {
   frameID: string
 }
 
-class App extends React.Component<{}, { url: string, players: PlayerData[], activePlayer: PlayerData | null }> {
-  state = { url: "", players: [], activePlayer: null }
+class App extends React.Component<{}, { url: string, frameSelected: boolean, viewerFrame: string | null }> {
+  state = { url: "", viewerFrame: null, frameSelected: false }
 
   handleMessage = (msg: any) => {
     if (msg.type === "setURL") {
       this.setState({ url: msg.url })
-    } else if (msg.type === "playerFrames") {
-      const players: PlayerData[] = []
-      for (const player in msg.playerFrames) {
-        players.push({ name: player, frameID: msg.playerFrames[player] })
-      }
-      this.setState({ players })
+    } else if (msg.type === "setViewerFrame") {
+      this.setState({ viewerFrame: msg.viewerFrame, frameSelected: true })
+    } else if (msg.type === "unsetViewerFrame") {
+      this.setState({ viewerFrame: null, frameSelected: false })
     }
   }
 
@@ -56,29 +54,27 @@ class App extends React.Component<{}, { url: string, players: PlayerData[], acti
     this.setState({ url: ev.target.value.split('?')[0] })
   }
 
-  render() {
-    if (this.state.activePlayer === null) {
-      return <div>
-        <input className="url_input" type="text" value={this.state.url} onChange={this.setURL} />
-        <button onClick={this.sendURL}>Set URL</button>
-        <div className="players">
-          {this.state.players.map((player) => {
-            return <div className="player" key={player.frameID} onClick={() => this.setState({ activePlayer: player })}>
-              <div className="info">i</div>
-              <div className="name">{player.name}</div>
-            </div>
-          })}
-        </div>
-      </div>
-    }
+  sendViewingFrame = () => {
+    parent.postMessage({ pluginMessage: { type: "setViewerFrame" } }, "*")
+  }
 
-    const playerURL = `${this.state.url}?node-id=${this.state.activePlayer.frameID.replace(':', '%3A')}`
+  render() {
+    const playerURL = this.state.viewerFrame ? `${this.state.url}?node-id=${this.state.viewerFrame.replace(':', '%3A')}` : ''
 
     return <div>
-      <div className="back"><button onClick={() => this.setState({ activePlayer: null })}>{`< Back`}</button></div>
-      <QRCodeComp key={playerURL} url={playerURL} />
-      <div className="url">{playerURL}</div>
+      <input className="url_input" type="text" value={this.state.url} onChange={this.setURL} />
+      <button onClick={this.sendURL}>Set URL</button>
+      { this.state.frameSelected && !this.state.viewerFrame && <div className="set_window">
+        <button onClick={this.sendViewingFrame}>Set as Viewing Window</button>
+      </div> }
+      { this.state.viewerFrame && <div>
+        <QRCodeComp key={playerURL} url={playerURL} />
+        <div className="url">{playerURL}</div>
+      </div> }
     </div>
+
+
+    return 
   }
 }
 
