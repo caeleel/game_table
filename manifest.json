@@ -1,6 +1,6 @@
 {
   "name": "Game Table",
-  "id": "821551836994273943",
+  "id": "823704590502753234",
   "api": "1.0.0",
   "main": "dist/code.js",
   "ui": "dist/ui.html",
@@ -8,8 +8,9 @@
     {"command": "shuffle", "name": "Shuffle", "multipleSelection": true},
     {"command": "flip", "name": "Flip Over", "multipleSelection": true},
     {"command": "tidy", "name": "Tidy Up", "multipleSelection": true},
-    {"command": "count", "name": "Count Selection", "multipleSelection": true},
     {"command": "gather", "name": "Gather"},
-    {"command": "players", "name": "Get Link to Viewing Window"}
+    {"command": "show", "name": "Look Privately", "multipleSelection": true},
+    {"command": "count", "name": "Count Selection", "multipleSelection": true},
+    {"command": "reset", "name": "Reset Game"}
   ]
 }

@@ -1,8 +1,4 @@
 function main() {
-  const UI_HEIGHT = 150;
-  const UI_WIDTH = 400;
-  figma.showUI(__html__, { width: UI_WIDTH, height: UI_HEIGHT });
-
   const selection = figma.currentPage.selection;
   if (selection.length !== 1) {
     figma.notify("Select exactly 1 frame to start game");
@@ -10,26 +6,7 @@ function main() {
     return;
   }
 
-  const url = figma.root.getPluginData("url");
-  if (url !== null) {
-    figma.ui.postMessage({ type: "setURL", url });
-  }
-
   let game = selection[0];
-
-  function showViewerInfo(target: SceneNode) {
-    const viewerRef = target.getPluginData("viewerRef");
-    const viewerFrame = figma.getNodeById(viewerRef);
-    figma.ui.resize(UI_WIDTH, viewerFrame ? 400 : UI_HEIGHT);
-    figma.ui.postMessage({ type: "setViewerFrame", viewerFrame: viewerFrame ? viewerRef : null });
-  }
-
-  if (game.getPluginData("gameRef") !== "") {
-    const candidate = figma.getNodeById(game.getPluginData("gameRef"));
-    if (candidate && !candidate.removed) {
-      game = candidate as SceneNode;
-    };
-  }
 
   if (game.type !== "FRAME") {
     figma.notify("Must select a frame node");
@@ -37,39 +14,21 @@ function main() {
     return;
   }
 
-  const HIDE_OFFSET = 20000;
   const MARGIN = 100;
-  let assetNode: ComponentNode | null = null;
-  game.setRelaunchData({ players: "Select or create a Viewing Window to see secret info" })
+  game.setRelaunchData({
+    reset: "Reset the game to the default state",
+  });
+
+  figma.root.setPluginData("url", "");
 
   for (const node of game.children) {
-    if (node.type === "COMPONENT" && node.name === "assets") {
-      assetNode = node;
-      game.insertChild(game.children.length - 1, node);
+    if (node.getPluginData("gameId") === game.id || (node.name === "assets" && node.type === "COMPONENT")) {
+      node.remove();
     }
   }
 
   for (const page of figma.root.children) {
-    const srcNode = page.getPluginData("srcNode");
-
-    if (srcNode) {
-      const node = figma.getNodeById(srcNode);
-      if (!node || node.removed) page.remove();
-    } else if (page.name === "Assets" && assetNode === null) {
-      assetNode = figma.createComponent();
-      assetNode.name = "assets";
-      game.appendChild(assetNode);
-      const prevHidden = game.getPluginData("hiddenNode");
-      if (prevHidden !== "") {
-        figma.getNodeById(prevHidden).remove();
-      }
-
-      const hiddenFrame = figma.createFrame();
-      hiddenFrame.name = "hidden-data";
-      hiddenFrame.visible = false;
-      hiddenFrame.locked = true;
-      game.setPluginData("hiddenNode", hiddenFrame.id);
-
+    if (page.name === "Assets") {
       let xOffset = MARGIN;
       for (const frame of page.children) {
         if (frame.type !== "FRAME") continue;
@@ -82,34 +41,34 @@ function main() {
           } else if (child.type === "COMPONENT") {
             continue;
           } else {
-            const widget = figma.createComponent();
+            const widget = figma.createFrame();
+            widget.fills = [];
             const backClone = back.clone();
             backClone.x = 0;
             backClone.y = 0;
             backClone.locked = true;
             widget.name = frame.name;
             widget.clipsContent = false;
-            hiddenFrame.appendChild(widget);
-            widget.appendChild(backClone);
+            game.appendChild(widget);
             const clone = child.clone();
             widget.appendChild(clone);
+            widget.appendChild(backClone);
             clone.x = 0;
-            clone.y = HIDE_OFFSET;
+            clone.y = 0;
             clone.locked = true;
             widget.resize(clone.width, clone.height);
+            widget.setPluginData("gameId", game.id);
             widget.setRelaunchData({
               shuffle: '',
               gather: '',
               flip: '',
               tidy: '',
+              show: 'Only you see the hidden info',
               count: `Count ${frame.name}s`
             })
 
-            const instance = widget.createInstance();
-            instance.setPluginData("assetNode", assetNode.id);
-            assetNode.appendChild(instance);
-            instance.x = xOffset;
-            instance.y = yOffset;
+            widget.x = xOffset;
+            widget.y = yOffset;
             yOffset--;
           }
         }
@@ -121,80 +80,13 @@ function main() {
     }
   }
 
-  assetNode.resize(game.width, game.height + HIDE_OFFSET);
-  assetNode.x = 0;
-  assetNode.y = 0;
-
-  function checkSelection() {
-    function unset() {
-      figma.ui.postMessage({ type: "unsetViewerFrame" });
-      figma.ui.resize(UI_WIDTH, UI_HEIGHT);
-    }
-
-    if (figma.currentPage.selection.length !== 1) {
-      unset();
-      return;
-    }
-
-    const target = figma.currentPage.selection[0];
-    if (target.parent !== assetNode) {
-      unset();
-      return;
-    }
-
-    showViewerInfo(target);
-  }
-  figma.on("selectionchange", checkSelection);
-  checkSelection();
-
-  figma.ui.onmessage = msg => {
-    if (msg.type === "setURL") {
-      figma.root.setPluginData("url", msg.url);
-    } else if (msg.type === "setViewerFrame") {
-      if (figma.currentPage.selection.length !== 1) return;
-
-      const target = figma.currentPage.selection[0];
-      const viewerRef = target.getPluginData("viewerRef");
-      if (figma.getNodeById(viewerRef)) return;
-      if (target.type !== "RECTANGLE" && target.type !== "FRAME" && target.type !== "INSTANCE") return;
-      target.fills = [];
-      target.strokes = [
-        { type: "SOLID", color: { r: 0, g: 0, b: 0 }, opacity: 0.5 },
-        { type: "SOLID", color: { r: 1, g: 1, b: 1 }, opacity: 0.5 },
-      ];
-      target.locked = true;
-      target.dashPattern = [32, 32];
-      target.strokeWeight = 8;
-      target.name = "Viewing Window";
-
-      const playerPage = figma.createPage();
-      playerPage.name = "viewer-page";
-      playerPage.setPluginData("srcNode", target.id);
-
-      const viewerFrame = figma.createFrame();
-      playerPage.appendChild(viewerFrame);
-      viewerFrame.name = "viewer";
-      target.setPluginData("viewerRef", viewerFrame.id);
-      target.setPluginData("gameRef", game.id);
-      target.setRelaunchData({ players: "Get link to secret viewing window" });
-      viewerFrame.resize(target.width, target.height);
-
-      const periscope = assetNode.createInstance();
-      viewerFrame.appendChild(periscope);
-      periscope.x = assetNode.x - target.x;
-      periscope.y = assetNode.y - target.y - HIDE_OFFSET;
-
-      figma.ui.resize(UI_WIDTH, 400);
-      figma.ui.postMessage({ type: "setViewerFrame", viewerFrame: viewerFrame.id });
-    }
-  }
+  figma.closePlugin();
 }
 
 function turnFaceDown(node: SceneNode) {
-  if (node.type === "INSTANCE") {
-    const master = node.masterComponent;
-    if (master.children.length === 3) {
-      master.children[2].remove();
+  if (node.type === "FRAME") {
+    if (node.children.length === 3) {
+      node.children[2].remove();
     }
   }
 }
@@ -234,11 +126,9 @@ function gather() {
   let xPos = target.x;
   let yPos = target.y;
 
-  const assetNodeID = target.getPluginData("assetNode");
-  if (assetNodeID === "") return;
-  const assetNode = figma.getNodeById(assetNodeID);
+  const assetNode = target.parent;
   if (assetNode.removed) return;
-  if (assetNode.type !== "COMPONENT") return;
+  if (assetNode.type !== "FRAME") return;
 
   if (toGather.length > 1) {
     toGather.sort((a, b) => {
@@ -285,14 +175,13 @@ function flip() {
   const selected = figma.currentPage.selection;
 
   for (let node of selected) {
-    if (node.type !== "INSTANCE") continue;
+    if (node.type !== "FRAME") continue;
 
-    node = node.masterComponent;
+    node.parent.appendChild(node);
 
     if (node.children.length === 2) {
-      const clone = node.children[1].clone();
+      const clone = node.children[0].clone();
       node.appendChild(clone);
-      clone.y = 0;
     } else if (node.children.length === 3) {
       node.children[2].remove();
     }
@@ -300,11 +189,59 @@ function flip() {
   figma.closePlugin();
 }
 
-if (figma.command === "shuffle") shuffle();
-else if (figma.command === "flip") flip();
-else if (figma.command === "gather") gather();
-else if (figma.command === "tidy") gather();
-else if (figma.command === "count") {
-  figma.notify(`${figma.currentPage.selection.length} selected`);
-  figma.closePlugin();
+function show() {
+  figma.showUI(__html__, { width: 400, height: 400 });
+
+  const recompute = async () => {
+    const selection = figma.currentPage.selection;
+    const container = figma.createFrame();
+    container.clipsContent = false;
+    container.x = - 100000000;
+
+    for (const node of selection) {
+      if (node.type === "FRAME" && node.getPluginData("gameId") !== "") {
+        const child = node.children[0].clone();
+        container.appendChild(child);
+        child.x = node.absoluteTransform[0][2];
+        child.y = node.absoluteTransform[1][2];
+      }
+    }
+
+    let uri: string | null = null;
+    if (container.children.length > 0) {
+      const group = figma.group(container.children, container);
+
+      await new Promise(resolve => setTimeout(resolve, 100));
+      const bytes = await group.exportAsync({ format: "PNG", contentsOnly: false });
+
+      uri = bytes.reduce((data, byte) => data + String.fromCharCode(byte), '');
+    }
+    figma.ui.postMessage({ type: "img", uri });
+    container.remove();
+  }
+
+  recompute();
+
+  figma.on("selectionchange", recompute);
+}
+
+
+
+if (figma.command && figma.command !== "" && figma.command !== "reset") {
+  const selection = figma.currentPage.selection;
+  if (figma.root.getPluginData("url") !== "" ||
+      (selection.length > 0 && selection[0].getPluginData("assetNode") !== "")) {
+    figma.showUI(__html__, { width: 400, height: 400 });
+    figma.ui.postMessage({ type: "warn" });
+  } else if (figma.command === "shuffle") shuffle();
+  else if (figma.command === "flip") flip();
+  else if (figma.command === "gather") gather();
+  else if (figma.command === "tidy") gather();
+  else if (figma.command === "show") show();
+  else if (figma.command === "count") {
+    figma.notify(`${figma.currentPage.selection.length} selected`);
+    figma.closePlugin();
+  }
 } else main();
+
+
