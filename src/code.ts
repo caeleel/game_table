@@ -27,11 +27,15 @@ function main() {
     }
   }
 
+  let itemIdx = 0;
+
   for (const page of figma.root.children) {
     if (page.name === "Assets") {
       let xOffset = MARGIN;
       for (const frame of page.children) {
         if (frame.type !== "FRAME") continue;
+
+        itemIdx++;
 
         let back: SceneNode | null = null;
         let yOffset = MARGIN;
@@ -41,24 +45,40 @@ function main() {
           } else if (child.type === "COMPONENT") {
             continue;
           } else {
-            const widget = figma.createFrame();
-            widget.fills = [];
             const backClone = back.clone();
             backClone.x = 0;
             backClone.y = 0;
             backClone.locked = true;
-            widget.name = frame.name;
-            widget.clipsContent = false;
-            game.appendChild(widget);
+
             const clone = child.clone();
-            widget.appendChild(clone);
-            widget.appendChild(backClone);
             clone.x = 0;
             clone.y = 0;
             clone.locked = true;
+
+            const widget = figma.createFrame();
+            game.appendChild(widget);
+            widget.name = frame.name;
+            widget.fills = [];
+            widget.clipsContent = false;
+            widget.appendChild(clone);
+            widget.appendChild(backClone);
             widget.resize(clone.width, clone.height);
-            widget.setPluginData("gameId", game.id);
-            widget.setRelaunchData({
+            widget.x = xOffset;
+            widget.y = yOffset;
+
+            const spacer = figma.createRectangle();
+            game.appendChild(spacer);
+            spacer.name = "----";
+            spacer.resize(clone.width, 1);
+            spacer.x = widget.x;
+            spacer.y = widget.y + widget.height;
+            spacer.fills = [];
+
+            const item = figma.group([widget, spacer], game);
+            item.name = frame.name;
+            item.setPluginData("gameId", game.id);
+            item.setPluginData("class", `item-${itemIdx}`)
+            item.setRelaunchData({
               shuffle: '',
               gather: '',
               flip: '',
@@ -67,8 +87,6 @@ function main() {
               count: `Count ${frame.name}s`
             })
 
-            widget.x = xOffset;
-            widget.y = yOffset;
             yOffset--;
           }
         }
@@ -84,9 +102,12 @@ function main() {
 }
 
 function turnFaceDown(node: SceneNode) {
-  if (node.type === "FRAME") {
-    if (node.children.length === 3) {
-      node.children[2].remove();
+  if (node.type === "GROUP") {
+    if (node.children.length > 0 && node.children[0].type === "FRAME") {
+      node = node.children[0];
+      if (node.children.length === 3) {
+        node.children[2].remove();
+      }
     }
   }
 }
@@ -153,12 +174,12 @@ function gather() {
     return;
   }
 
-  const targetName = target.name;
+  const targetName = target.getPluginData("class");
   const children = assetNode.children;
   const gathered: SceneNode[] = [];
 
   for (const candidate of children) {
-    if (candidate.name === targetName) {
+    if (candidate.getPluginData("class") === targetName) {
       gathered.push(candidate);
       turnFaceDown(candidate);
       candidate.x = xPos;
@@ -175,9 +196,11 @@ function flip() {
   const selected = figma.currentPage.selection;
 
   for (let node of selected) {
-    if (node.type !== "FRAME") continue;
+    if (node.type !== "GROUP") continue;
+    if (node.children.length === 0 || node.children[0].type !== "FRAME") continue;
 
     node.parent.appendChild(node);
+    node = node.children[0];
 
     if (node.children.length === 2) {
       const clone = node.children[0].clone();
@@ -199,11 +222,14 @@ function show() {
     container.x = - 100000000;
 
     for (const node of selection) {
-      if (node.type === "FRAME" && node.getPluginData("gameId") !== "") {
-        const child = node.children[0].clone();
+      if (node.type === "GROUP" && node.getPluginData("gameId") !== "") {
+        if (node.children.length === 0 || node.children[0].type !== "FRAME") continue;
+
+        const inner = node.children[0];
+        const child = inner.children[0].clone();
         container.appendChild(child);
-        child.x = node.absoluteTransform[0][2];
-        child.y = node.absoluteTransform[1][2];
+        child.x = inner.absoluteTransform[0][2];
+        child.y = inner.absoluteTransform[1][2];
       }
     }
 
