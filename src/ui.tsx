@@ -14,10 +14,12 @@ window.addEventListener("message", (event) => {
 class App extends React.Component<{}, { uri: string | null, autoRefresh: boolean, showWarning: boolean }> {
   state = { uri: null, autoRefresh: true, showWarning: false }
   buffer: string | null = null
+  captureNextBuffer: boolean = false
 
   handleMessage = (msg: any) => {
     const img = msg.uri && btoa(msg.uri)
-    if (msg.type === "img" && (this.state.uri == null || this.state.autoRefresh)) {
+    if (msg.type === "img" && (this.state.uri == null || this.state.autoRefresh) || this.captureNextBuffer) {
+      this.captureNextBuffer = false
       this.setState({ uri: img })
     } else if (msg.type === "warn") {
       this.setState({ showWarning: true })
@@ -27,17 +29,21 @@ class App extends React.Component<{}, { uri: string | null, autoRefresh: boolean
 
   refresh = () => {
     this.setState({ uri: this.buffer })
+    parent.postMessage({ pluginMessage: { type: 'trigger-refresh' }}, '*')
+    this.captureNextBuffer = true
+    if (this.state.autoRefresh) setTimeout(this.refresh, 2000)
   }
 
   toggleAutoRefresh = () => {
-    if (!this.state.autoRefresh) this.refresh();
+    if (!this.state.autoRefresh) this.refresh()
     this.setState({ autoRefresh: !this.state.autoRefresh })
   }
 
   componentDidMount() {
     for (const ev of buffer) this.handleMessage(ev);
-    buffer = [];
-    callback = (ev) => this.handleMessage(ev.data.pluginMessage);
+    buffer = []
+    callback = (ev) => this.handleMessage(ev.data.pluginMessage)
+    if (this.state.autoRefresh) setTimeout(this.refresh, 2000)
   }
 
   render() {

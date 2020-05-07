@@ -11,6 +11,7 @@
     {"command": "gather", "name": "Gather"},
     {"command": "show", "name": "Look Privately", "multipleSelection": true},
     {"command": "count", "name": "Count Selection", "multipleSelection": true},
-    {"command": "reset", "name": "Reset Game"}
+    {"command": "reset", "name": "Reset Game"},
+    {"command": "reset_catan", "name": "Randomize Board"}
   ]
 }

@@ -101,6 +101,172 @@ function main() {
   figma.closePlugin();
 }
 
+function swap(arr: any[], i: number, j: number) {
+  const tmp = arr[i];
+  arr[i] = arr[j];
+  arr[j] = tmp;
+}
+
+function shuffleArray(arr: any[], startIdx: number) {
+  for (let i = startIdx; i < arr.length; i++) {
+    const idx = Math.floor(Math.random() * (arr.length - i));
+    swap(arr, i, i + idx);
+  }
+}
+
+function setupCatan(board: FrameNode) {
+  const indexToPosition = [
+    [2, 4],
+    [2, 6],
+    [3, 5],
+    [3, 3],
+    [2, 2],
+    [1, 3],
+    [1, 5],
+    [2, 8],
+    [3, 7],
+    [4, 6],
+    [4, 4],
+    [4, 2],
+    [3, 1],
+    [2, 0],
+    [1, 1],
+    [0, 2],
+    [0, 4],
+    [0, 6],
+    [1, 7],
+  ].reverse();
+
+  const positionToIndex: { [position: string]: number } = {}
+  for (let i = 0; i < indexToPosition.length; i++) {
+    const position = indexToPosition[i];
+
+    positionToIndex[`${position}`] = i;
+  }
+
+  const biomes = ["Field", "Forest", "Ore", "Desert", "Wheat", "Clay"];
+  const allBiomes = [0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 3, 4, 4, 4, 4, 5, 5, 5];
+  const biomeComponents: (ComponentNode | null)[] = [null, null, null, null, null, null];
+  let biomesFound = 0;
+
+  const ports = ["Field", "Forest", "Ore", "Any", "Wheat", "Clay"];
+  const allPorts = [0, 1, 2, 3, 3, 3, 3, 4, 5];
+  const portComponents: (ComponentNode | null)[] = [null, null, null, null, null, null];
+  let portsFound = 0;
+
+  const numbers = ["2", "3", "4", "5", "6", "8", "9", "10", "11", "12"];
+  const allNumbers = [0, 1, 1, 2, 2, 3, 3, 6, 6, 7, 7, 8, 8, 9];
+  const numberComponents: (ComponentNode | null)[] = [null, null, null, null, null, null, null, null, null, null];
+  let numbersFound = 0;
+
+  for (const child of figma.root.children) {
+    if (child.name.indexOf("Components") < 0) continue;
+
+    for (const candidate of child.children) {
+      if (candidate.type !== "COMPONENT") continue;
+
+      if (candidate.name.indexOf("Biome / ") === 0) {
+        const biomeName = candidate.name.substring(8);
+        const biomeIdx = biomes.indexOf(biomeName);
+        if (biomeIdx < 0) continue;
+        if (biomeComponents[biomeIdx] != null) continue;
+
+        biomesFound++;
+        biomeComponents[biomeIdx] = candidate;
+      } else if (candidate.name.indexOf("Port / ") === 0) {
+        const portName = candidate.name.substring(7);
+        const portIdx = ports.indexOf(portName);
+        if (portIdx < 0) continue;
+        if (portComponents[portIdx] != null) continue;
+
+        portsFound++;
+        portComponents[portIdx] = candidate;
+      } else if (candidate.name.indexOf("Number Tile / ") === 0) {
+        const numberName = candidate.name.substring(14);
+        const numberIdx = numbers.indexOf(numberName);
+        if (numberIdx < 0) continue;
+        if (numberComponents[numberIdx] != null) continue;
+
+        numbersFound++;
+        numberComponents[numberIdx] = candidate;
+      }
+
+      if (biomesFound === 6 && portsFound === 6 && numbersFound === 10) break;
+    }
+
+    if (biomesFound === 6 && portsFound === 6 && numbersFound === 10) break;
+  }
+
+  shuffleArray(allBiomes, 0);
+  shuffleArray(allPorts, 0);
+  let currBiomeIdx = 0;
+  let currPortIdx = 0;
+
+  const numberPositions: number[] = [];
+  for (let i = 0; i < allBiomes.length; i++) {
+    if (allBiomes[i] !== 3) numberPositions.push(i);
+  }
+
+  const specialNumbers = [4, 4, 5, 5];
+  let currIdx = 0;
+  for (let i = 0; i < 4; i++) {
+    const num = specialNumbers[i];
+    allNumbers.splice(currIdx, 0, num);
+
+    const idx = Math.floor(Math.random() * (numberPositions.length - currIdx));
+    swap(numberPositions, currIdx, idx + currIdx);
+
+    const coords = indexToPosition[numberPositions[currIdx]];
+    currIdx++;
+
+    const neighbors = [
+      [coords[0] - 1, coords[1] - 1], [coords[0] - 1, coords[1] + 1],
+      [coords[0], coords[1] - 2], [coords[0], coords[1] + 2],
+      [coords[0] + 1, coords[1] - 1], [coords[0] + 1, coords[1] + 1],
+    ];
+    for (const neighbor of neighbors) {
+      const position = positionToIndex[`${neighbor}`];
+      if (position == undefined) continue;
+
+      const idx = numberPositions.indexOf(position);
+      if (idx < currIdx) continue;
+
+      swap(numberPositions, currIdx, idx);
+
+      const toSwap = Math.floor(Math.random() * (allNumbers.length - currIdx));
+      swap(allNumbers, currIdx, currIdx + toSwap);
+      currIdx++;
+    }
+  }
+
+  shuffleArray(allNumbers, currIdx);
+
+  const positionToComponent: { [pos: number]: ComponentNode } = {}
+  for (let i = 0; i < allNumbers.length; i++) {
+    positionToComponent[numberPositions[i]] = numberComponents[allNumbers[i]];
+  }
+
+  for (const child of board.children) {
+    if (child.type !== "INSTANCE") continue;
+
+    if (child.name.indexOf("Biome / ") === 0) {
+      child.masterComponent = biomeComponents[allBiomes[currBiomeIdx]];
+      if (positionToComponent[currBiomeIdx] && child.children[1].type === "INSTANCE") {
+        child.children[1].masterComponent = positionToComponent[currBiomeIdx];
+      }
+
+      currBiomeIdx++;
+    }
+
+    if (child.name.indexOf("Port / ") === 0) {
+      child.masterComponent = portComponents[allPorts[currPortIdx]];
+      currPortIdx++;
+    }
+  }
+
+  figma.closePlugin();
+}
+
 function turnFaceDown(node: SceneNode) {
   if (node.type === "GROUP") {
     if (node.children.length > 0 && node.children[0].type === "FRAME") {
@@ -149,7 +315,7 @@ function gather() {
 
   const assetNode = target.parent;
   if (assetNode.removed) return;
-  if (assetNode.type !== "FRAME") return;
+  if (assetNode.type !== "FRAME" && assetNode.type !== "PAGE") return;
 
   if (toGather.length > 1) {
     toGather.sort((a, b) => {
@@ -170,7 +336,6 @@ function gather() {
       xPos += item.width + 2;
       assetNode.appendChild(item);
     }
-    figma.closePlugin();
     return;
   }
 
@@ -188,8 +353,6 @@ function gather() {
     }
   }
   figma.currentPage.selection = gathered;
-
-  figma.closePlugin();
 }
 
 function flip() {
@@ -215,8 +378,21 @@ function flip() {
 function show() {
   figma.showUI(__html__, { width: 400, height: 400 });
 
+  let cachedHash: { [guid: string]: string } = {};
+
   const recompute = async () => {
     const selection = figma.currentPage.selection;
+    let all_same = true;
+
+    for (const node of selection) {
+      if (cachedHash[node.id] !== `${node.x}:${node.y}`) {
+        cachedHash[node.id] = `${node.x}:${node.y}`;
+        all_same = false;
+      }
+    }
+
+    if (all_same) return;
+
     const container = figma.createFrame();
     container.clipsContent = false;
     container.x = - 100000000;
@@ -248,12 +424,21 @@ function show() {
 
   recompute();
 
-  figma.on("selectionchange", recompute);
+  figma.ui.on("message", (msg) => {
+    if (msg.type === "trigger-refresh") recompute();
+  });
+  figma.on("selectionchange", () => {
+    cachedHash = {};
+    recompute();
+  });
 }
 
+const selection = figma.currentPage.selection;
 
-
-if (figma.command && figma.command !== "" && figma.command !== "reset") {
+if (selection.length === 1 && (selection[0].name === "Catan Game Board" || figma.command === "reset_catan") && selection[0].type === "FRAME") {
+  selection[0].setRelaunchData({ reset_catan: "" });
+  setupCatan(selection[0]);
+} else if (figma.command && figma.command !== "" && figma.command !== "reset") {
   const selection = figma.currentPage.selection;
   if (figma.root.getPluginData("url") !== "" ||
       (selection.length > 0 && selection[0].getPluginData("assetNode") !== "")) {
@@ -261,9 +446,10 @@ if (figma.command && figma.command !== "" && figma.command !== "reset") {
     figma.ui.postMessage({ type: "warn" });
   } else if (figma.command === "shuffle") shuffle();
   else if (figma.command === "flip") flip();
-  else if (figma.command === "gather") gather();
-  else if (figma.command === "tidy") gather();
-  else if (figma.command === "show") show();
+  else if (figma.command === "gather" || figma.command === "tidy") {
+    gather();
+    figma.closePlugin();
+  } else if (figma.command === "show") show();
   else if (figma.command === "count") {
     figma.notify(`${figma.currentPage.selection.length} selected`);
     figma.closePlugin();
